@@ -1,0 +1,58 @@
+name: smart-bins-kg
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: smartbins
+      POSTGRES_PASSWORD: smartbins
+      POSTGRES_DB: smartbins
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartbins -d smartbins"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ../backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://smartbins:smartbins@db:5432/smartbins
+      STORAGE_DIR: /data/storage
+      CV_MODE: heuristic
+      OFFLINE_AFTER_HOURS: 6
+      CORS_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    volumes:
+      - media:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  simulator:
+    build: ../simulator
+    environment:
+      API_URL: http://backend:8000
+      SIM_INTERVAL: 10
+    depends_on:
+      - backend
+
+  frontend:
+    build: ../frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
+  media:
